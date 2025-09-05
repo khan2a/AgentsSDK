@@ -12,4 +12,7 @@ uv init
 uv add --dev ruff flake8
 ruff check .
 flake8 .
+v pip install pre-commit
+pre-commit
+pre-commit run --all-files
 ```
