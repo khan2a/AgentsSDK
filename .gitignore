@@ -1,2 +1,5 @@
 .env
 .venv/
+tools/credentials.json
+tools/token.json
+tools/__pycache__/
