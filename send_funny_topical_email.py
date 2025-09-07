@@ -58,7 +58,7 @@ email_selector_agent = Agent(
 # define list of tools including email sending tool and agents as tools
 humorous_email_agent_as_tool = humorous_email_agent.as_tool(
     tool_name='humorous_email_tool',
-    tool_description='Writes a humorous email on a given topic.'
+    tool_description='Writes a humorous email on a given topic.',
 )
 
 
@@ -112,7 +112,7 @@ async def pick_the_best_humorous_email():
 
         outputs = [humorous_email.final_output for humorous_email in humorous_emails]
         for idx, output in enumerate(outputs, start=1):
-            logger.info('Humorous Email %d generated (length=%d)', idx, len(output or ""))
+            logger.info('Humorous Email %d generated (length=%d)', idx, len(output or ''))
             print('\nHumorous Email:\n', output)
 
     with trace('pick best humorous email'):
@@ -121,15 +121,15 @@ async def pick_the_best_humorous_email():
         best_humorous_email = await asyncio.gather(
             Runner.run(starting_agent=email_selector_agent, input=email_selector_agent_input),
         )
-        logger.info('Best humorous email selected (length=%d)', len(best_humorous_email[0].final_output or ""))
+        logger.info('Best humorous email selected (length=%d)', len(best_humorous_email[0].final_output or ''))
         print('\nBest Humorous Email:\n', best_humorous_email[0].final_output)
 
 
 async def send_funny_topical_email(
     topic: str | None = None,
     recipient: str = MY_EMAIL,
-        sender: str = MY_EMAIL
-        ) -> None:
+        sender: str = MY_EMAIL,
+) -> None:
     load_dotenv(override=True)
 
     if topic is None or topic.strip() == '':
@@ -147,13 +147,13 @@ async def send_funny_topical_email(
         name='Emailer Agent',
         model='gpt-4o-mini',
         instructions='You write and send emails using the tools available to you.',
-        tools=tools
+        tools=tools,
     )
 
     with trace('use agents as tools'):
         logger.info('Running emailer agent to write and send email: topic=%s recipient=%s', topic, recipient)
         result = await Runner.run(starting_agent=emailer_agent, input=emailer_agent_input)
-        logger.info('Emailer agent finished. Result length=%d', len(result.final_output or ""))
+        logger.info('Emailer agent finished. Result length=%d', len(result.final_output or ''))
         print('\nFinal Output:\n', result.final_output)
 
 if __name__ == '__main__':
