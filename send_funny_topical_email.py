@@ -58,7 +58,7 @@ humorous_email_instructions = (
     f' Remember todays date is {datetime.now().strftime("%B %d, %Y")}.'
     ' Use the above date to make the email relevant to current events.'
     ' Also use the above date in the email content to give an impression of timeliness.'
-    ' Also include links to relevant articles if possible.'
+    ' Add links to relevant articles if possible.'
 )
 humorous_email_agent = Agent(
     name='Humorous Email Agent',
