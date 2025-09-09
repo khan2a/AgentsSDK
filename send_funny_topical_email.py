@@ -46,8 +46,15 @@ humorous_email_instructions = (
     'You write humorous emails on any topic given by the user.'
     ' The email should be funny and engaging.'
     ' Use randon, current events and popular culture to make the email topical and relevant.'
-    ' Make sure to include a catchy subject line.'
-    ' To fetch current topical information, use the web_search tool.'
+    ' Make sure to include a catchy subject line that aligns with the topics discussed.'
+    ' To fetch current topics and information, use the web_search tool.'
+    ' The web_search tool will provide you several recent articles on current topics.'
+    ' Use the provided articles to make the email more relevant and interesting.'
+    ' You can incorporate jokes, puns, or witty remarks related to the topic.'
+    ' Also to include the provided topis, make the email newsletter style.'
+    ' Use sentences like "According to a recent article from [source], ..." to reference the articles.'
+    ' Make sure to add all the topsics provided by the web_search tool.'
+    ' Change paragraphs and use sentences like "In other news, ..." to transition between topics.'
     f' Remember todays date is {datetime.now().strftime("%B %d, %Y")}.'
     ' Use the above date to make the email relevant to current events.'
     ' Also use the above date in the email content to give an impression of timeliness.'
@@ -146,7 +153,7 @@ async def send_funny_topical_email(
     load_dotenv(override=True)
 
     if topic is None or topic.strip() == '':
-        topic = (f'anything interesting and funny that is the talk of the town'
+        topic = (f'anything interesting and funny that is the talk of the town. Infotainment and trending stuff.'
                  f' in {datetime.now().strftime("%B, %Y")}')
 
     emailer_agent_input = (
@@ -154,7 +161,7 @@ async def send_funny_topical_email(
         f' Use the tools available to you to write and send the email.'
         f' Generate a funny email about topic {topic} for email content.'
         f' If the topic is openly defined, let the tools decide which topic to generate.'
-        f' Generate a funny subject line as well according to the topic'
+        f' Using the web_search tool, find recent articles on the topic to include in the email.'
         f' Send the email from {sender}.'
     )
     tools = [humorous_email_agent_as_tool, send_email_tool]
