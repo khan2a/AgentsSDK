@@ -21,8 +21,6 @@ from __future__ import annotations
 import html
 import logging
 import os
-from typing import Dict
-from typing import List
 
 import requests  # type: ignore[import]
 from agents import function_tool

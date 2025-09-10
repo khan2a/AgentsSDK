@@ -235,14 +235,15 @@ async def send_html_email(
         'You are an email formatter and sender. You receive the body of an email to be sent. '
         ' You first use the humorous_email_agent_as_tool to write an email in plain text,'
         ' then use the email_converter_agent_as_tool to convert the body to HTML. '
-        ' Finally, you use the send_html_email_tool to send the email with the subject and HTML body.')
+        ' Finally, you use the send_html_email_tool to send the email with the subject and HTML body.'
+    )
 
     emailer_agent_handoff = Agent(
         name='HTML Emailer Agent',
         model='gpt-4o-mini',
         instructions=emailer_agent_instructions,
         tools=emailer_agent_tools,
-        handoff_description="Write and send an HTML email using the tools available to you."
+        handoff_description='Write and send an HTML email using the tools available to you.',
     )
 
     email_manager = Agent(
@@ -250,7 +251,7 @@ async def send_html_email(
         model='gpt-4o-mini',
         instructions='You manage the process of writing and sending an HTML email using the tools available to you.',
         tools=[humorous_email_agent_as_tool],
-        handoffs=[emailer_agent_handoff]
+        handoffs=[emailer_agent_handoff],
     )
 
     email_manager_input = (
