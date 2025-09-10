@@ -52,6 +52,17 @@ def send_email(sender, to, subject, body):
     return send_message(service, sender, message)
 
 
+def send_html_email(sender, to, subject, html_body):
+    service = gmail_authenticate()
+    message = MIMEText(html_body, 'html')
+    message['to'] = to
+    message['from'] = sender
+    message['subject'] = subject
+    raw = base64.urlsafe_b64encode(message.as_bytes())
+    body = {'raw': raw.decode()}
+    return send_message(service, sender, body)
+
+
 if __name__ == '__main__':
     print(send_email('me', 'engineer.atique@gmail.com', 'Hello from Gmail API', 'This is a test email sent using Gmail API with Python.'))
     print('Email sent successfully!')

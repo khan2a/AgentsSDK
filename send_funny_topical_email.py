@@ -41,6 +41,28 @@ def send_email_tool(sender: str, recipient: str, subject: str, body: str) -> dic
         return {'status': 'error', 'message': str(e)}
 
 
+@function_tool
+def send_html_email_tool(sender: str, recipient: str, subject: str, html_body: str) -> dict:
+    """
+    Sends an HTML email using the email tool.
+    Args:
+        sender (str): The email address of the sender.
+        recipient (str): The email address of the recipient.
+        subject (str): The subject of the email.
+        html_body (str): The HTML body content of the email.
+    Returns:
+        dict: A dictionary indicating the status of the email sending operation and a message.
+    """
+    logger.info('send_html_email_tool called: from=%s to=%s subject=%s', sender, recipient, subject)
+    try:
+        email_sender.send_html_email(sender, recipient, subject, html_body)
+        logger.info('HTML email sent successfully to %s', recipient)
+        return {'status': 'success', 'message': 'HTML email sent successfully.'}
+    except Exception as e:
+        logger.exception('Failed to send HTML email to %s: %s', recipient, e)
+        return {'status': 'error', 'message': str(e)}
+
+
 # Define agents with specific instructions
 humorous_email_instructions = (
     'You write humorous emails on any topic given by the user.'
@@ -97,10 +119,29 @@ email_selector_agent = Agent(
     instructions=email_selector_instructions,
 )
 
+html_email_instructions = (
+    'You can convert a text email body into HTML email body.'
+    ' The email should be well-structured and visually appealing.'
+    ' Use HTML tags to format the email content appropriately.'
+    ' Ensure that the HTML is clean, simple, clear and compelling layout and design.'
+    ' The text email body might contain markdown formatting. Convert markdown to HTML where applicable.'
+)
+
+email_converter_agent = Agent(
+    name='Emmail Converter Agent',
+    model='gpt-4o-mini',
+    instructions=html_email_instructions,
+)
+
 # define list of tools including email sending tool and agents as tools
 humorous_email_agent_as_tool = humorous_email_agent.as_tool(
     tool_name='humorous_email_tool',
     tool_description='Writes a humorous email on a given topic.',
+)
+
+email_converter_agent_as_tool = email_converter_agent.as_tool(
+    tool_name='email_converter_tool',
+    tool_description='Converts text email body to HTML format.',
 )
 
 
@@ -178,8 +219,58 @@ async def send_funny_topical_email(
         logger.info('Emailer agent finished. Result length=%d', len(result.final_output or ''))
         print('\nFinal Output:\n', result.final_output)
 
+
+async def send_html_email(
+    topic: str | None = None,
+    recipient: str = MY_EMAIL,
+        sender: str = MY_EMAIL,
+) -> None:
+    load_dotenv(override=True)
+    if topic is None or topic.strip() == '':
+        topic = (f'anything interesting and funny that is the talk of the town. Infotainment and trending stuff.'
+                 f' in {datetime.now().strftime("%B, %Y")}')
+    emailer_agent_tools = [email_converter_agent_as_tool, send_html_email_tool]
+
+    emailer_agent_instructions = (
+        'You are an email formatter and sender. You receive the body of an email to be sent. '
+        ' You first use the humorous_email_agent_as_tool to write an email in plain text,'
+        ' then use the email_converter_agent_as_tool to convert the body to HTML. '
+        ' Finally, you use the send_html_email_tool to send the email with the subject and HTML body.')
+
+    emailer_agent_handoff = Agent(
+        name='HTML Emailer Agent',
+        model='gpt-4o-mini',
+        instructions=emailer_agent_instructions,
+        tools=emailer_agent_tools,
+        handoff_description="Write and send an HTML email using the tools available to you."
+    )
+
+    email_manager = Agent(
+        name='Email Manager Agent',
+        model='gpt-4o-mini',
+        instructions='You manage the process of writing and sending an HTML email using the tools available to you.',
+        tools=[humorous_email_agent_as_tool],
+        handoffs=[emailer_agent_handoff]
+    )
+
+    email_manager_input = (
+        f'Write and send an humorous HTML email to {recipient}, from {sender}.'
+        f' Use the tools available to you to write and send the email.'
+        f' Generate a funny email about topic {topic} for email content.'
+        f' If the topic is openly defined, let the tools decide which topic to generate.'
+        f' Using the web_search tool, find recent articles on the topic to include in the email.'
+    )
+
+    with trace(f'use email_manager_agent as tools @ {datetime.now().isoformat()}'):
+        logger.info('Running email_manager_agent to write and send email: topic=%s recipient=%s', topic, recipient)
+        result = await Runner.run(starting_agent=email_manager, input=email_manager_input)
+        logger.info('Email_manager_agent finished. Result length=%d', len(result.final_output or ''))
+        logger.info('\nFinal Output:\n %s', result.final_output)
+
+
 if __name__ == '__main__':
     recipient = MY_EMAIL
     topic = None
     logger.info('Starting main run: topic=%s recipient=%s', topic, recipient)
-    asyncio.run(send_funny_topical_email(topic=topic, recipient=recipient))
+    # asyncio.run(send_funny_topical_email(topic=topic, recipient=recipient))
+    asyncio.run(send_html_email(topic=topic, recipient=recipient))
