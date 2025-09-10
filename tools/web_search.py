@@ -17,22 +17,23 @@ export BING_ENDPOINT="https://api.bing.microsoft.com/v7.0/search"
 The tool returns a JSON-serializable dict describing results.
 """
 from __future__ import annotations
-import os
-from dotenv import load_dotenv
+
 import html
 import logging
-from typing import List, Dict
+import os
+from typing import Dict
+from typing import List
 
 import requests  # type: ignore[import]
-from bs4 import BeautifulSoup  # type: ignore[import]
-
 from agents import function_tool
+from bs4 import BeautifulSoup  # type: ignore[import]
+from dotenv import load_dotenv
 
 load_dotenv(override=True)
 logger = logging.getLogger(__name__)
 
 
-def _serpapi_search(query: str, num: int = 5) -> List[Dict]:
+def _serpapi_search(query: str, num: int = 5) -> list[dict]:
     """Search using SerpAPI (https://serpapi.com).
 
     Returns a list of result dicts with keys: title, snippet, link, source.
@@ -46,7 +47,7 @@ def _serpapi_search(query: str, num: int = 5) -> List[Dict]:
         'q': query,
         'api_key': api_key,
         'num': num,
-        'engine': 'google'
+        'engine': 'google',
     }
     resp = requests.get('https://serpapi.com/search', params=params, timeout=15)
     resp.raise_for_status()
@@ -57,12 +58,12 @@ def _serpapi_search(query: str, num: int = 5) -> List[Dict]:
             'title': item.get('title'),
             'snippet': item.get('snippet') or item.get('snippet_highlighted') or '',
             'link': item.get('link'),
-            'source': 'serpapi'
+            'source': 'serpapi',
         })
     return results
 
 
-def _bing_search(query: str, num: int = 5) -> List[Dict]:
+def _bing_search(query: str, num: int = 5) -> list[dict]:
     """Search using Bing Web Search API (Azure/Bing)."""
     api_key = os.getenv('BING_API_KEY')
     endpoint = os.getenv('BING_ENDPOINT')
@@ -80,12 +81,12 @@ def _bing_search(query: str, num: int = 5) -> List[Dict]:
             'title': item.get('name'),
             'snippet': item.get('snippet'),
             'link': item.get('url'),
-            'source': 'bing'
+            'source': 'bing',
         })
     return results
 
 
-def _duckduckgo_search(query: str, num: int = 5) -> List[Dict]:
+def _duckduckgo_search(query: str, num: int = 5) -> list[dict]:
     """Fallback scraper for DuckDuckGo search results page.
 
     This is a simple HTML scrape and is fragile. Use only when API
@@ -156,6 +157,6 @@ web_search_tool = function_tool(_web_search_impl)
 
 
 if __name__ == '__main__':
-    query = "Latest news on AI advancements"
+    query = 'Latest news on AI advancements'
     result = _serpapi_search(query, num=3)
     print(result)
