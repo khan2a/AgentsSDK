@@ -98,8 +98,11 @@ def _duckduckgo_search(query: str, num: int = 5) -> list[dict]:
         title = a.get_text(strip=True)
         link = a.get('href')
         # DuckDuckGo often wraps links; best-effort unescape
-        link = html.unescape(link)
-        snippet_el = a.find_parent('div', class_='result').select_one('.result__snippet')
+        link = html.unescape(str(link)) if link else ''
+        parent_div = a.find_parent('div', class_='result')
+        snippet_el = None
+        if parent_div and hasattr(parent_div, 'select_one') and callable(getattr(parent_div, 'select_one', None)):
+            snippet_el = parent_div.select_one('.result__snippet')  # type: ignore
         snippet = snippet_el.get_text(strip=True) if snippet_el else ''
         results.append({'title': title, 'snippet': snippet, 'link': link, 'source': 'duckduckgo'})
     return results
