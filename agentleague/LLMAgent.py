@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import datetime
 import logging
 import os
 from typing import Any
@@ -118,7 +119,7 @@ class LLMAgent(BaseModel):
             except Exception as e:
                 logging.error(f"Error running agent with prompt '{prompt}': {e}")
                 raise
-        with trace('LLMAgent Test'):
+        with trace(f'LLMAgent {self.name} @ {datetime.datetime.now().isoformat()}'):
             response = asyncio.run(_ask_agent(prompt))
         return response
 
