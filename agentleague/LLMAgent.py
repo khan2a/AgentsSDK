@@ -1,3 +1,4 @@
+#  traces at https://platform.openai.com/logs?api=traces
 from __future__ import annotations
 
 import asyncio
