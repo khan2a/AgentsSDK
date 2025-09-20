@@ -5,26 +5,78 @@ import asyncio
 import datetime
 import logging
 import os
+import sys
+import time
+from functools import wraps
+from pathlib import Path
 from typing import Any
+from typing import Callable
 
 from agents import Agent
+from agents import function_tool
 from agents import OpenAIChatCompletionsModel
 from agents import Runner
 from agents import trace
+from agents.tool import FunctionTool
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
 from pydantic import BaseModel
 from pydantic import ConfigDict
 from pydantic import Field
+
+from agenttools.email_sender import send_html_email
+from agenttools.web_search import web_search
+
+# Add the project root to Python path and import agenttools
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+
 # Load environment variables
 load_dotenv(override=True)
 logging.basicConfig(level=logging.INFO)
 
 
+# Create the email tool outside the class to avoid 'self' parameter issues
+@function_tool
+def send_html_email_tool(
+    sender: str | None = 'engineer.atique@gmail.com',
+    to: str | None = 'engineer.atique@gmail.com',
+    subject: str | None = 'Test Email from LLMAgent',
+    html_body: str | None = '<p>This is a test email from LLMAgent.</p>',
+) -> str:
+    """Sends an HTML email using tools/email_sender.
+
+    Args:
+        sender: The email address of the sender.
+        to: The email address of the recipient.
+        subject: The subject of the email.
+        html_body: The HTML content of the email.
+
+    Returns:
+        A confirmation message indicating the email was sent.
+    """
+    logging.info(f"Sending email to {to} with subject '{subject}'")
+    return send_html_email(
+        to=to,
+        sender=sender,
+        subject=subject,
+        html_body=html_body,
+    )
+
+
+# Using tools/web_search.py to create web searching tool for LLM Agents
+@function_tool
+def search_web(query: str, num_results: int = 2) -> dict:
+    return web_search(query=query, num_results=num_results)
+
+
 class LLMAgent(BaseModel):
     """LLM agent class for managing agent configurations and tools."""
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        ignored_types=(FunctionTool,),
+    )
 
     name: str = Field(
         default='LLMAgent',
@@ -70,7 +122,7 @@ class LLMAgent(BaseModel):
         description='The core agent represented as a tool.',
         exclude=True,  # Exclude from serialization since it's not JSON serializable
     )
-    tools: list[str] = Field(
+    tools: list[Any] = Field(
         default_factory=list,
         description='A list of tools the agent can use.',
     )
@@ -102,6 +154,24 @@ class LLMAgent(BaseModel):
         """Returns the core agent represented as a tool."""
         return self.core_agent_as_tool
 
+    @staticmethod
+    def timer(func: Callable[..., Any]) -> Callable[..., Any]:
+        """Decorator that logs the execution time of a function."""
+        @wraps(func)
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            start_time = time.perf_counter()
+            try:
+                result = func(*args, **kwargs)
+                return result
+            finally:
+                end_time = time.perf_counter()
+                execution_time = end_time - start_time
+                func_name = func.__name__
+                class_name = args[0].__class__.__name__ if args and hasattr(args[0], '__class__') else 'Unknown'
+                logging.info(f"{class_name}.{func_name} executed in {execution_time:.4f} seconds")
+        return wrapper
+
+    @timer
     def ask_agent(self, prompt: str) -> str:
         """Ask the core agent a question and get a response.
 
@@ -125,27 +195,29 @@ class LLMAgent(BaseModel):
         return response
 
 
-if __name__ == '__main__':
-    name = 'GeminiAgent'
-    base_url = os.getenv('GEMINI_BASE_URL')
-    api_key = os.getenv('GEMINI_API_KEY')
-    base_model = os.getenv('GEMINI_BASE_MODEL')
-    instructions = (
-        'You are an expert assistant that can perform a variety of tasks using the tools at your disposal. '
-        'Use the tools wisely to assist with user requests.'
+async def main():
+    # Example usage
+    model = os.getenv('OLLAMA_BASE_MODEL') or 'gpt-oss:20b'
+    async_openai_client = AsyncOpenAI(
+        base_url=os.getenv('OLLAMA_BASE_URL'),
+        api_key=os.getenv('OLLAMA_API_KEY'),
     )
-    gemini_agent = LLMAgent(name=name, base_url=base_url, api_key=api_key, base_model=base_model, instructions=instructions)
-    prompt = 'What is the capital of France?'
-    print(f"Prompt: {prompt}")
-    response = gemini_agent.ask_agent(prompt)
-    print(f"Response: {response}")
+    agent_model = OpenAIChatCompletionsModel(model=model, openai_client=async_openai_client)
 
-    name = 'GroqAgent'
-    base_url = os.getenv('GROQ_BASE_URL')
-    api_key = os.getenv('GROQ_API_KEY')
-    base_model = os.getenv('GROQ_BASE_MODEL')
-    groq_agent = LLMAgent(name=name, base_url=base_url, api_key=api_key, base_model=base_model, instructions=instructions)
-    prompt = 'What is the capital of Germany?'
-    print(f"Prompt: {prompt}")
-    response = groq_agent.ask_agent(prompt)
-    print(f"Response: {response}")
+    agent = Agent(
+        name='emailer_agent',
+        instructions='You are an expert agent that can search the web and send emails by using the available tools.',
+        model=agent_model,
+        tools=[search_web, send_html_email_tool],
+    )
+    sender, to = 'engineer.atique@gmail.com', 'engineer.atique@gmail.com'
+    prompt = (
+        'Can you search for latest tech news and events and send it by email? '
+        f"Use sender address {sender} and recipient address {to}"
+        '. Make the email rhetorical, comical, funny, satirical and full of humor.'
+    )
+    with trace(f"{datetime.datetime.now().isoformat()}: Emailer {model}"):
+        await Runner.run(agent, prompt)
+
+if __name__ == '__main__':
+    asyncio.run(main())
