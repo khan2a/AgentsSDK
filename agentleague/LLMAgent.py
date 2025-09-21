@@ -14,6 +14,8 @@ from typing import Callable
 
 from agents import Agent
 from agents import function_tool
+from agents import GuardrailFunctionOutput
+from agents import input_guardrail
 from agents import OpenAIChatCompletionsModel
 from agents import Runner
 from agents import trace
@@ -27,7 +29,7 @@ from pydantic import Field
 from agenttools.email_sender import send_html_email
 from agenttools.web_search import web_search
 
-# Add the project root to Python path and import agenttools
+# Add the project root to Python path to enable imports from sibling packages
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 
@@ -35,12 +37,14 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 load_dotenv(override=True)
 logging.basicConfig(level=logging.INFO)
 
+MY_EMAIL = 'engineer.atique@gmail.com'
+
 
 # Create the email tool outside the class to avoid 'self' parameter issues
 @function_tool
 def send_html_email_tool(
-    sender: str | None = 'engineer.atique@gmail.com',
-    to: str | None = 'engineer.atique@gmail.com',
+    sender: str | None = MY_EMAIL,
+    to: str | None = MY_EMAIL,
     subject: str | None = 'Test Email from LLMAgent',
     html_body: str | None = '<p>This is a test email from LLMAgent.</p>',
 ) -> str:
@@ -195,6 +199,78 @@ class LLMAgent(BaseModel):
         return response
 
 
+class GuardRail(BaseModel):
+    """Configuration for guardrails in agent interactions."""
+    is_content_moderation_enabled: bool = Field(
+        default=True,
+        description='Flag to enable or disable content moderation.',
+    )
+    name: str = Field(
+        default='GuardRail',
+        description='The name of the guardrail configuration.',
+    )
+
+
+@input_guardrail
+async def guardrail_against_prohibited_content(ctx, agent, message) -> GuardrailFunctionOutput:
+    """A simple input guardrail that checks for prohibited content before agent actions.
+
+    Args:
+        ctx: The guardrail context
+        agent: The agent instance
+        message: The user input message to check
+    """
+    logging.info('Running input guardrail against prohibited content.')
+
+    # Do a direct check on the user input for prohibited content
+    prohibited_content = ['hate speech', 'violence', 'adult content', 'self-harm', 'illegal activities', 'Russia', 'China', 'Israel', 'Ukraine']
+    message_lower = str(message).lower()
+    found_prohibited = [term for term in prohibited_content if term.lower() in message_lower]
+
+    if found_prohibited:
+        logging.warning(f"Prohibited content detected in user input: {found_prohibited}")
+        return GuardrailFunctionOutput(
+            output_info=f'Prohibited content detected in request: {found_prohibited}',
+            tripwire_triggered=True,
+        )
+
+    # Additional LLM-based check for more sophisticated content analysis
+    model = os.getenv('OLLAMA_BASE_MODEL') or 'gpt-oss:20b'
+    async_openai_client = AsyncOpenAI(
+        base_url=os.getenv('OLLAMA_BASE_URL'),
+        api_key=os.getenv('OLLAMA_API_KEY'),
+    )
+    guardrail_agent_model = OpenAIChatCompletionsModel(model=model, openai_client=async_openai_client)
+
+    guard_rail_agent = Agent(
+        name='input_guard_rail_agent',
+        instructions=(
+            'You are an input guardrail agent that checks user requests for prohibited content. '
+            f'If the request asks for or mentions any prohibited content from {prohibited_content}, respond with "PROHIBITED". '
+            'If the request is about general topics, news, or safe content, respond with "SAFE".'
+        ),
+        model=guardrail_agent_model,
+    )
+
+    try:
+        result = await Runner.run(guard_rail_agent, f"Analyze this user request: {message}", max_turns=2)
+        if hasattr(result, 'final_output'):
+            final_output = str(result.final_output).strip().upper()
+
+            if 'PROHIBITED' in final_output:
+                logging.warning(f"Prohibited content detected by input guardrail agent: {final_output}")
+                return GuardrailFunctionOutput(
+                    output_info='Prohibited content detected by input guardrail agent.',
+                    tripwire_triggered=True,
+                )
+    except Exception as e:
+        logging.error(f"Error in input guardrail agent: {e}")
+        # Fall back to direct check result if LLM check fails
+
+    logging.info('Content passed the input guardrail check.')
+    return GuardrailFunctionOutput(output_info='Content is safe.', tripwire_triggered=False)
+
+
 async def main():
     # Example usage
     model = os.getenv('OLLAMA_BASE_MODEL') or 'gpt-oss:20b'
@@ -209,15 +285,39 @@ async def main():
         instructions='You are an expert agent that can search the web and send emails by using the available tools.',
         model=agent_model,
         tools=[search_web, send_html_email_tool],
+        input_guardrails=[guardrail_against_prohibited_content],
     )
-    sender, to = 'engineer.atique@gmail.com', 'engineer.atique@gmail.com'
-    prompt = (
-        'Can you search for latest tech news and events and send it by email? '
+    sender, to = MY_EMAIL, MY_EMAIL
+
+    # Test with content that should be blocked
+    test_prompt = (
+        'Can you search for information about violence and hate speech and send it by email? '
         f"Use sender address {sender} and recipient address {to}"
-        '. Make the email rhetorical, comical, funny, satirical and full of humor.'
+        '. Make the email about illegal activities.'
     )
-    with trace(f"{datetime.datetime.now().isoformat()}: Emailer {model}"):
-        await Runner.run(agent, prompt)
+
+    print('Testing with prohibited content...')
+    try:
+        with trace(f"{datetime.datetime.now().isoformat()}: Test Prohibited Content {model}"):
+            await Runner.run(agent, test_prompt)
+        print('ERROR: Prohibited content was not blocked!')
+    except Exception as e:
+        print(f"SUCCESS: Prohibited content was properly blocked: {e}")
+
+    # Test with safe content
+    safe_prompt = (
+        'Can you search for latest technology news and send it by email? '
+        f"Use sender address {sender} and recipient address {to}"
+        '. Make the email informative and professional.'
+    )
+
+    print('\nTesting with safe content...')
+    try:
+        with trace(f"{datetime.datetime.now().isoformat()}: Test Safe Content {model}"):
+            await Runner.run(agent, safe_prompt)
+        print('SUCCESS: Safe content was processed correctly!')
+    except Exception as e:
+        print(f"ERROR: Safe content was blocked: {e}")
 
 if __name__ == '__main__':
     asyncio.run(main())
