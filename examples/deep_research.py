@@ -1,7 +1,7 @@
 # https://platform.openai.com/traces
 # cd /Users/AKhan2/github.com/khan2a/AgentsSDK
 # source .venv/bin/activate
-# python examples/deep_research.py
+# python -m examples.deep_research
 from __future__ import annotations
 
 import asyncio

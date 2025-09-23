@@ -1,7 +1,7 @@
 #  traces at https://platform.openai.com/logs?api=traces
 # cd /Users/AKhan2/github.com/khan2a/AgentsSDK
 # source .venv/bin/activate
-# python agentleague/LLMAgent.py
+# python -m agentleague.LLMAgent
 from __future__ import annotations
 
 import asyncio
