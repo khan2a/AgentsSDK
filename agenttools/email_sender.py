@@ -3,7 +3,6 @@ from __future__ import annotations
 import base64
 import os.path
 from email.mime.text import MIMEText
-from pathlib import Path
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -13,12 +12,9 @@ from googleapiclient.discovery import build
 # If modifying scopes, delete token.json before running again
 SCOPES = ['https://www.googleapis.com/auth/gmail.send']
 
-# Get the directory where this script is located
-script_dir = Path(__file__).parent
-
 # Set paths relative to the script location
-token_path = script_dir / 'token.json'
-credentials_path = script_dir / 'credentials.json'
+token_path = 'token.json'
+credentials_path = 'credentials.json'
 
 
 def gmail_authenticate():

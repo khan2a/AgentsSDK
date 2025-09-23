@@ -6,3 +6,4 @@ agenttools/__pycache__/
 token.json
 __pycache__/
 agenttools/credentials.json
+credentials.json
