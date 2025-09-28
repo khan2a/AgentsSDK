@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import time as time_module
 from datetime import time
 
@@ -19,8 +20,10 @@ from agents import WebSearchTool
 from dotenv import load_dotenv
 from pydantic import BaseModel
 from pydantic import Field
+from vonage_sms import SmsResponse
 
 from agenttools.email_sender import send_html_email
+from agenttools.sms_sender import send_sms
 
 load_dotenv(override=True)
 
@@ -30,9 +33,10 @@ logger = logging.getLogger(__name__)
 SEPARATOR = '\n=======================================\n'
 HOW_MANY_SEARCHES = 3
 sender, recipient = 'engineer.atique@gmail.com', 'engineer.atique@gmail.com'
+sms_recipient_number = os.getenv('SMS_RECIPIENT_NUMBER')
 todays_date = f"Remember, today is {time_module.strftime('%B %d, %Y')}."
 
-topic = f'Quantum Computing as of {todays_date}'
+topic = f'Vonage portfolio {todays_date}'
 
 instructions_for_search_planner_agent = (
     'You are a research planner agent. '
@@ -75,6 +79,8 @@ instructions_for_senior_researcher_agent = (
     'The report must be comprehensive in its coverage of the topic. You can decide the length of the report. '
     'This report will be used to generate an email, so ensure it is informative and accurate.'
     f' {todays_date} so all references should be from the last 6 months.'
+    'once your task is complete, you must use the send_sms_tool to notify the user that the report is ready.'
+    f'Send the SMS to {sms_recipient_number} with a short response with report name and status.'
 )
 
 
@@ -126,6 +132,31 @@ def send_html_email_tool(
     )
 
 
+@function_tool
+def send_sms_tool(
+    to_number: str,
+    from_number: str,
+    message_text: str,
+) -> SmsResponse:
+    """Sends an SMS using tools/sms_sender.
+
+    Args:
+        to_number: The phone number of the recipient.
+        from_number: The phone number of the sender.
+        message_text: The text content of the SMS.
+
+    Returns:
+        A confirmation message indicating the SMS was sent.
+    """
+    logging.info(f"Sending SMS to {to_number} from {from_number}")
+    response = send_sms(
+        to_number=to_number,
+        from_number=from_number,
+        message_text=message_text,
+    )
+    return response
+
+
 async def plan_searches(topic: str) -> WebSearchPlan:
     """Plans a series of web searches to perform on a given topic."""
     search_planner_agent = Agent(
@@ -169,11 +200,13 @@ async def generate_report(topic: str, search_results: list[str]) -> ReportData:
             senior_researcher_agent = Agent(
                 name='SeniorResearcherAgent',
                 instructions=instructions_for_senior_researcher_agent,
+                tools=[send_sms_tool],
                 model='gpt-4o-mini',
                 output_type=ReportData,
             )
             prompt = (
-                f"Original query: {topic}\nSummarized search results: {search_results}"
+                f"Original query: {topic}\nSummarized search results: {search_results}. "
+                f"Once your task is complete, you must use the send_sms_tool to notify the user that the report is ready."
             )
             result = await Runner.run(starting_agent=senior_researcher_agent, input=prompt)
             return result.final_output

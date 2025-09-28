@@ -256,7 +256,7 @@ async def guardrail_against_prohibited_content(ctx, agent, message) -> Guardrail
     )
 
     try:
-        result = await Runner.run(guard_rail_agent, f"Analyze this user request: {message}", max_turns=2)
+        result = await Runner.run(guard_rail_agent, f"Analyze this user request: {message}", max_turns=10)
         if hasattr(result, 'final_output'):
             final_output = str(result.final_output).strip().upper()
 
@@ -294,9 +294,11 @@ async def main():
 
     # Test with safe content
     safe_prompt = (
-        'Can you search for latest Generative AI news and send it by email? '
+        'Can you search for latest CPAAS news and send it by email? '
         f"Use sender address {sender} and recipient address {to}"
         'Make the email informative and professional.'
+        'Include links to sources in the email.'
+        'Use only 5 search results.'
     )
 
     print('\nsafe content check enabled...')
